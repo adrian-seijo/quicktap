@@ -12,6 +12,50 @@
 	/*jslint browser:true, node:true*/
 	/*global define, Event, Node*/
 
+	/**
+	* Windows Phone 8.1 fakes user agent string to look like Android and iPhone.
+	*
+	* @type boolean
+	*/
+	var deviceIsWindowsPhone = navigator.userAgent.indexOf("Windows Phone") >= 0;
+
+	/**
+	 * Android requires exceptions.
+	 *
+	 * @type boolean
+	 */
+	var deviceIsAndroid = navigator.userAgent.indexOf('Android') > 0 && !deviceIsWindowsPhone;
+
+
+	/**
+	 * iOS requires exceptions.
+	 *
+	 * @type boolean
+	 */
+	var deviceIsIOS = /iP(ad|hone|od)/.test(navigator.userAgent) && !deviceIsWindowsPhone;
+
+
+	/**
+	 * iOS 4 requires an exception for select elements.
+	 *
+	 * @type boolean
+	 */
+	var deviceIsIOS4 = deviceIsIOS && (/OS 4_\d(_\d)?/).test(navigator.userAgent);
+
+
+	/**
+	 * iOS 6.0-7.* requires the target element to be manually derived
+	 *
+	 * @type boolean
+	 */
+	var deviceIsIOSWithBadTarget = deviceIsIOS && (/OS [6-7]_\d/).test(navigator.userAgent);
+
+	/**
+	 * BlackBerry requires exceptions.
+	 *
+	 * @type boolean
+	 */
+	var deviceIsBlackBerry10 = navigator.userAgent.indexOf('BB10') > 0;
 
 	/**
 	 * Instantiate fast-clicking listeners on the specified layer.
@@ -102,21 +146,19 @@
 		 */
 		this.tapTimeout = options.tapTimeout || 700;
 
-		if (QuickTap.notNeeded(layer)) {
-			return;
-		}
+		if (QuickTap.notNeeded(layer)) return;
 
-		// Some old versions of Android don't have Function.prototype.bind
-		function bind(method, context) {
-			return function() { return method.apply(context, arguments); };
-		}
+		// // Some old versions of Android don't have Function.prototype.bind
+		// function bind(method, context) {
+		// 	return function() { return method.apply(context, arguments); };
+		// }
 
+    var METHODS = ['onMouse', 'onClick', 'onTouchStart', 'onTouchMove', 'onTouchEnd', 'onTouchCancel'];
+		METHODS.forEach(function(method) { this[method] = this[method].bind(this); }.bind(this));
 
-		var methods = ['onMouse', 'onClick', 'onTouchStart', 'onTouchMove', 'onTouchEnd', 'onTouchCancel'];
-		var context = this;
-		for (var i = 0, l = methods.length; i < l; i++) {
-			context[methods[i]] = bind(context[methods[i]], context);
-		}
+		// for (var i = 0, l = methods.length; i < l; i++) {
+		// 	context[methods[i]] = bind(context[methods[i]], context);
+		// }
 
 		// Set up event handlers as required
 		if (deviceIsAndroid) {
@@ -131,33 +173,6 @@
 		layer.addEventListener('touchend', this.onTouchEnd, false);
 		layer.addEventListener('touchcancel', this.onTouchCancel, false);
 
-		// Hack is required for browsers that don't support Event#stopImmediatePropagation (e.g. Android 2)
-		// which is how QuickTap normally stops click events bubbling to callbacks registered on the QuickTap
-		// layer when they are cancelled.
-		if (!Event.prototype.stopImmediatePropagation) {
-			layer.removeEventListener = function(type, callback, capture) {
-				var rmv = Node.prototype.removeEventListener;
-				if (type === 'click') {
-					rmv.call(layer, type, callback.hijacked || callback, capture);
-				} else {
-					rmv.call(layer, type, callback, capture);
-				}
-			};
-
-			layer.addEventListener = function(type, callback, capture) {
-				var adv = Node.prototype.addEventListener;
-				if (type === 'click') {
-					adv.call(layer, type, callback.hijacked || (callback.hijacked = function(event) {
-						if (!event.propagationStopped) {
-							callback(event);
-						}
-					}), capture);
-				} else {
-					adv.call(layer, type, callback, capture);
-				}
-			};
-		}
-
 		// If a handler is already declared in the element's onclick attribute, it will be fired before
 		// QuickTap's onClick handler. Fix this by pulling out the user-defined handler function and
 		// adding it as listener.
@@ -166,57 +181,10 @@
 			// Android browser on at least 3.2 requires a new reference to the function in layer.onclick
 			// - the old one won't work if passed to addEventListener directly.
 			oldOnClick = layer.onclick;
-			layer.addEventListener('click', function(event) {
-				oldOnClick(event);
-			}, false);
+			layer.addEventListener('click', function(event) { oldOnClick(event); }, false);
 			layer.onclick = null;
 		}
 	}
-
-	/**
-	* Windows Phone 8.1 fakes user agent string to look like Android and iPhone.
-	*
-	* @type boolean
-	*/
-	var deviceIsWindowsPhone = navigator.userAgent.indexOf("Windows Phone") >= 0;
-
-	/**
-	 * Android requires exceptions.
-	 *
-	 * @type boolean
-	 */
-	var deviceIsAndroid = navigator.userAgent.indexOf('Android') > 0 && !deviceIsWindowsPhone;
-
-
-	/**
-	 * iOS requires exceptions.
-	 *
-	 * @type boolean
-	 */
-	var deviceIsIOS = /iP(ad|hone|od)/.test(navigator.userAgent) && !deviceIsWindowsPhone;
-
-
-	/**
-	 * iOS 4 requires an exception for select elements.
-	 *
-	 * @type boolean
-	 */
-	var deviceIsIOS4 = deviceIsIOS && (/OS 4_\d(_\d)?/).test(navigator.userAgent);
-
-
-	/**
-	 * iOS 6.0-7.* requires the target element to be manually derived
-	 *
-	 * @type boolean
-	 */
-	var deviceIsIOSWithBadTarget = deviceIsIOS && (/OS [6-7]_\d/).test(navigator.userAgent);
-
-	/**
-	 * BlackBerry requires exceptions.
-	 *
-	 * @type boolean
-	 */
-	var deviceIsBlackBerry10 = navigator.userAgent.indexOf('BB10') > 0;
 
 	/**
 	 * Determine whether a given element requires a native click.
@@ -325,7 +293,6 @@
 	QuickTap.prototype.focus = function(targetElement) {
 		var length;
 
-		// Issue #160: on iOS 7, some input elements (e.g. date datetime month) throw a vague TypeError on setSelectionRange. These elements don't have an integer value for the selectionStart and selectionEnd properties, but unfortunately that can't be used for detection because accessing the properties also throws a TypeError. Just check the type instead. Filed as Apple bug #15122724.
 		// According to the whatwg spec only text, search, url, tel and password inputs have selection so its not a bug its a poorly implemented spec that should fail even more. https://html.spec.whatwg.org/multipage/forms.html#concept-input-apply
 		if (targetElement.setSelectionRange && targetElement.type === 'text' || targetElement.type === 'search' || targetElement.type === 'url' || targetElement.type === 'tel' || targetElement.type === 'password') {
 			length = targetElement.value.length;
@@ -729,7 +696,6 @@
 
 	/**
 	 * Check whether QuickTap is needed.
-	 *
 	 * @param {Element} layer The layer to listen on
 	 */
 	QuickTap.notNeeded = function(layer) {
@@ -743,78 +709,32 @@
 			return true;
 		}
 
-		// Chrome version - zero for other browsers
-		chromeVersion = +(/Chrome\/([0-9]+)/.exec(navigator.userAgent) || [,0])[1];
+    // iOS always needs this
+    if (deviceIsIOS) {
+      return false;
+    }
 
-		if (chromeVersion) {
+    if (deviceIsWindowsPhone) {
+      // IE10/IE11
+  		if (layer.style.msTouchAction === 'none' || layer.style.touchAction === 'none' ||
+          layer.style.touchAction === 'manipulation' || layer.style.touchAction === 'manipulation') {
+  			return true;
+  		}
 
-			if (deviceIsAndroid) {
-				metaViewport = document.querySelector('meta[name=viewport]');
+      return false;
+    }
 
-				if (metaViewport) {
-					// Chrome on Android with user-scalable="no" doesn't need QuickTap (issue #89)
-					if (metaViewport.content.indexOf('user-scalable=no') !== -1) {
-						return true;
-					}
-					// Chrome 32 and above with width=device-width or less don't need QuickTap
-					if (chromeVersion > 31 && document.documentElement.scrollWidth <= window.outerWidth) {
-						return true;
-					}
-				}
+    // By default we are going to say that for the rest of the browsers if they have the proper metas we don't need
+    // to do anything
 
-			// Chrome desktop doesn't need QuickTap (issue #15)
-			} else {
-				return true;
-			}
-		}
+    metaViewport = document.querySelector('meta[name=viewport]');
 
-		if (deviceIsBlackBerry10) {
-			blackberryVersion = navigator.userAgent.match(/Version\/([0-9]*)\.([0-9]*)/);
+    if (!metaViewport) return false;
+    if (metaViewport.content.indexOf('user-scalable=no') !== -1) return true;
+    if (document.documentElement.scrollWidth <= window.outerWidth) return true;
 
-			// BlackBerry 10.3+ does not require Fastclick library.
-			// https://github.com/ftlabs/fastclick/issues/251
-			if (blackberryVersion[1] >= 10 && blackberryVersion[2] >= 3) {
-				metaViewport = document.querySelector('meta[name=viewport]');
-
-				if (metaViewport) {
-					// user-scalable=no eliminates click delay.
-					if (metaViewport.content.indexOf('user-scalable=no') !== -1) {
-						return true;
-					}
-					// width=device-width (or less than device-width) eliminates click delay.
-					if (document.documentElement.scrollWidth <= window.outerWidth) {
-						return true;
-					}
-				}
-			}
-		}
-
-		// IE10 with -ms-touch-action: none or manipulation, which disables double-tap-to-zoom (issue #97)
-		if (layer.style.msTouchAction === 'none' || layer.style.touchAction === 'manipulation') {
-			return true;
-		}
-
-		// Firefox version - zero for other browsers
-		firefoxVersion = +(/Firefox\/([0-9]+)/.exec(navigator.userAgent) || [,0])[1];
-
-		if (firefoxVersion >= 27) {
-			// Firefox 27+ does not have tap delay if the content is not zoomable - https://bugzilla.mozilla.org/show_bug.cgi?id=922896
-
-			metaViewport = document.querySelector('meta[name=viewport]');
-			if (metaViewport && (metaViewport.content.indexOf('user-scalable=no') !== -1 || document.documentElement.scrollWidth <= window.outerWidth)) {
-				return true;
-			}
-		}
-
-		// IE11: prefixed -ms-touch-action is no longer supported and it's recomended to use non-prefixed version
-		// http://msdn.microsoft.com/en-us/library/windows/apps/Hh767313.aspx
-		if (layer.style.touchAction === 'none' || layer.style.touchAction === 'manipulation') {
-			return true;
-		}
-
-		return false;
+    return false;
 	};
-
 
 	/**
 	 * Factory method for creating a QuickTap object
@@ -829,14 +749,16 @@
 
 	if (typeof define === 'function' && typeof define.amd === 'object' && define.amd) {
 
-		// AMD. Register as an anonymous module.
-		define(function() {
-			return QuickTap;
-		});
+    // AMD. Register as an anonymous module.
+		define(function() { return QuickTap; });
+
 	} else if (typeof module !== 'undefined' && module.exports) {
-		module.exports = QuickTap.attach;
+
+    module.exports = QuickTap.attach;
 		module.exports.QuickTap = QuickTap;
+
 	} else {
+
 		window.QuickTap = QuickTap;
 	}
 }());
