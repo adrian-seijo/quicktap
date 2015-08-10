@@ -1,0 +1,29 @@
+{
+  "name": "quicktap",
+  "version": "1.0.0",
+  "description": "Fork of fastclick with a couple of fixes on top",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kileras/quicktap.git"
+  },
+  "keywords": [
+    "fastclick",
+    "quicktap",
+    "mobile",
+    "touch",
+    "tap",
+    "click",
+    "delay",
+    "ios"
+  ],
+  "author": "Adrian Seijo <kileras@gmail.com> (https://github.com/kileras)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/kileras/quicktap/issues"
+  },
+  "homepage": "https://github.com/kileras/quicktap#readme"
+}
